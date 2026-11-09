@@ -64,6 +64,23 @@
             </Grid>
         </DataTemplate>
 
+        <DataTemplate x:Key="PointTemplate" DataType="{x:Type vm:RestorePointItem}">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="&#xE81C;" FontFamily="{StaticResource IconFont}" FontSize="24"
+                           Foreground="{StaticResource CyanBrush}" VerticalAlignment="Top" Margin="0,2,12,0" />
+                <StackPanel Grid.Column="1">
+                    <TextBlock Text="{Binding Label}" FontSize="14" FontWeight="Bold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding DateText}" Foreground="{StaticResource MutedBrush}" FontSize="12" Margin="0,2,0,0" />
+                    <TextBlock Text="{Binding Summary}" Foreground="{StaticResource MutedBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Text="{Binding Origin}" Foreground="{StaticResource MutedBrush}" FontSize="12" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+            </Grid>
+        </DataTemplate>
+
         <Style x:Key="DestinationItem" TargetType="ListBoxItem" BasedOn="{StaticResource DiskItem}">
             <Setter Property="IsEnabled" Value="{Binding CanBeDestination}" />
         </Style>
@@ -121,10 +138,10 @@
 
                         <!-- En-tête : logo animé + modes -->
                         <Grid Margin="0,6,0,22">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
                             <StackPanel Orientation="Horizontal">
                                 <Image Source="Assets/ghost.png" Width="58" Height="58">
                                     <Image.Effect>
@@ -151,13 +168,15 @@
                                 </StackPanel>
                             </StackPanel>
 
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="-3,18,0,0">
                                 <RadioButton Style="{StaticResource ModeButton}" Tag="&#xE8C8;" Content="CLONER"
                                              IsChecked="{Binding IsClone, Mode=TwoWay}" IsEnabled="{Binding IsIdle}" GroupName="mode" />
                                 <RadioButton Style="{StaticResource ModeButton}" Tag="&#xE74E;" Content="CRÉER UNE IMAGE"
                                              IsChecked="{Binding IsImage, Mode=TwoWay}" IsEnabled="{Binding IsIdle}" GroupName="mode" />
                                 <RadioButton Style="{StaticResource ModeButton}" Tag="&#xE777;" Content="RESTAURER"
                                              IsChecked="{Binding IsRestore, Mode=TwoWay}" IsEnabled="{Binding IsIdle}" GroupName="mode" />
+                                <RadioButton Style="{StaticResource ModeButton}" Tag="&#xE81C;" Content="POINT DE RESTAURATION"
+                                             IsChecked="{Binding IsRestorePoint, Mode=TwoWay}" IsEnabled="{Binding IsIdle}" GroupName="mode" />
                             </StackPanel>
                         </Grid>
 
@@ -170,7 +189,7 @@
                             </Grid.ColumnDefinitions>
 
                             <!-- ZONE 1 : SOURCE -->
-                            <Border Style="{StaticResource Card}" Height="330">
+                            <Border Style="{StaticResource Card}" Height="370">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -219,7 +238,7 @@
                             </TextBlock>
 
                             <!-- ZONE 2 : DESTINATION -->
-                            <Border Grid.Column="2" Style="{StaticResource Card}" Height="330">
+                            <Border Grid.Column="2" Style="{StaticResource Card}" Height="370">
                                 <Grid>
                                     <Grid.RowDefinitions>
                                         <RowDefinition Height="Auto" />
@@ -233,6 +252,32 @@
                                              ItemContainerStyle="{StaticResource DestinationItem}"
                                              ItemTemplate="{StaticResource DiskTemplate}"
                                              Visibility="{Binding ShowDestinationDisks, Converter={StaticResource B2V}}" />
+
+                                    <!-- Points de restauration -->
+                                    <DockPanel Grid.Row="1" Visibility="{Binding ShowDestinationPoints, Converter={StaticResource B2V}}">
+                                        <StackPanel DockPanel.Dock="Top">
+                                            <TextBlock Text="DOSSIER DES POINTS (sur un autre disque)" Style="{StaticResource Caption}" />
+                                            <DockPanel Margin="0,4,0,8">
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Content="Parcourir…"
+                                                        Margin="8,0,0,0" Command="{Binding BrowsePointsFolderCommand}" />
+                                                <Button DockPanel.Dock="Right" Style="{StaticResource GhostButton}" Margin="8,0,0,0"
+                                                        Command="{Binding RefreshPointsCommand}" ToolTip="Actualiser la liste des points">
+                                                    <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFont}" />
+                                                </Button>
+                                                <TextBox Text="{Binding PointsFolder, UpdateSourceTrigger=LostFocus}" IsEnabled="{Binding IsIdle}"
+                                                         Background="#0A1220" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}"
+                                                         Padding="10,7" CaretBrush="{StaticResource CyanBrush}" FontSize="13" />
+                                            </DockPanel>
+                                            <TextBlock Text="NOM DU NOUVEAU POINT" Style="{StaticResource Caption}" />
+                                            <TextBox Text="{Binding PointLabel, UpdateSourceTrigger=PropertyChanged}" IsEnabled="{Binding IsIdle}" Margin="0,4,0,8"
+                                                     Background="#0A1220" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource LineBrush}"
+                                                     Padding="10,7" CaretBrush="{StaticResource CyanBrush}" FontSize="13" />
+                                            <TextBlock Text="{Binding PointsInfo}" Foreground="{StaticResource MutedBrush}" FontSize="12" TextWrapping="Wrap" Margin="0,0,0,8" />
+                                        </StackPanel>
+                                        <ListBox Style="{StaticResource DiskList}" ItemsSource="{Binding Points}"
+                                                 SelectedItem="{Binding SelectedPoint, Mode=TwoWay}" IsEnabled="{Binding IsIdle}"
+                                                 ItemTemplate="{StaticResource PointTemplate}" />
+                                    </DockPanel>
 
                                     <!-- Image : fichier de sauvegarde -->
                                     <StackPanel Grid.Row="1" Visibility="{Binding ShowDestinationFile, Converter={StaticResource B2V}}">
@@ -260,6 +305,10 @@
                             <Button Style="{StaticResource DangerButton}" Content="ANNULER L'OPÉRATION" Command="{Binding CancelCommand}"
                                     Visibility="{Binding IsBusy, Converter={StaticResource B2V}}" />
                         </Grid>
+
+                        <Button Style="{StaticResource GhostButton}" Content="REVENIR À CE POINT DE RESTAURATION…" Margin="0,10,0,0"
+                                Height="46" FontSize="14" FontWeight="SemiBold" Command="{Binding RevertCommand}"
+                                Visibility="{Binding ShowRevert, Converter={StaticResource B2V}}" />
 
                         <!-- Progression -->
                         <Border Style="{StaticResource Card}" Margin="0,18,0,0"

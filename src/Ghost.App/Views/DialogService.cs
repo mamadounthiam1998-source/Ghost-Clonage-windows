@@ -44,6 +44,12 @@ public sealed class DialogService : IDialogService
         return d.ShowDialog(_owner) == true ? d.FileName : null;
     }
 
+    public string? PickFolder()
+    {
+        var d = new OpenFolderDialog { Title = "Dossier des points de restauration (sur un AUTRE disque)" };
+        return d.ShowDialog(_owner) == true ? d.FolderName : null;
+    }
+
     public bool ConfirmCancelOnClose() =>
         MessageBox.Show(_owner,
             "Une opération est en cours. Voulez-vous l'interrompre de manière contrôlée ?\n\nLe disque destination sera alors incomplet.",

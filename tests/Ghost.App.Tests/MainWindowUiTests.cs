@@ -27,6 +27,7 @@ internal sealed class FakeDialogs : IDialogService
     public void ShowBlocked(string title, string message) => Blocked.Add(title + " : " + message);
     public string? PickSaveImage() => null;
     public string? PickOpenImage() => null;
+    public string? PickFolder() => null;
     public bool ConfirmCancelOnClose() => true;
 }
 
@@ -132,7 +133,7 @@ public class MainWindowUiTests
             SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
 
             var dialogs = new FakeDialogs();
-            var window = new MainWindow(env.Provider, dialogs);
+            var window = new MainWindow(env.Provider, dialogs, env.PathOf("settings.json"));
             window.Show();
             var vm = window.ViewModel;
             Settle(600);
@@ -206,6 +207,49 @@ public class MainWindowUiTests
             vm.RestoreImagePath = bad;
             Assert.StartsWith("⚠", vm.ImageInfo);
             Assert.False(vm.CanStart);
+
+            // 8) Point de restauration du DISQUE ENTIER, puis retour à ce point après dégâts
+            vm.Mode = AppMode.RestorePoint; Settle();
+            Shot(window, "8-points-restauration");
+            vm.PointsFolder = env.PathOf("points");               // le dossier est créé par le logiciel
+            vm.PointLabel = "Avant mise à jour";
+            vm.SelectedSource = vm.SourceDisks.Single(x => x.Id == "src");
+            Assert.True(vm.CanStart);
+            Assert.False(vm.CanRevert);                           // aucun point choisi
+            File.Copy(sp, env.PathOf("reference.img"));
+            vm.StartCommand.Execute(null);
+            PumpUntil(() => vm.HasResult, 60000, "création du point de restauration");
+            Assert.True(vm.ResultKind == "ok", "Point : " + vm.ResultText);
+            Assert.Single(vm.Points);
+            Assert.Equal("Avant mise à jour", vm.Points[0].Label);
+            Assert.Contains("disque entier", vm.Points[0].Origin);
+            Assert.True(vm.HasResult, "le résultat doit rester affiché après le rafraîchissement de la liste des points");
+            Shot(window, "9-point-cree");
+
+            using (var d = FileBlockDevice.Open(sp, true))        // « mise à jour qui tourne mal »
+                DiskBuilder.FillPattern(d, 2048L * 512, 8L << 20, 999, false);
+            Assert.False(DiskBuilder.RangesEqual(sp, env.PathOf("reference.img"), 64L << 20));
+
+            vm.SelectedPoint = vm.Points[0];
+            Assert.True(vm.CanRevert);
+            dialogs.Confirm = true;
+            vm.RevertCommand.Execute(null);
+            PumpUntil(() => vm.HasResult, 60000, "retour au point de restauration");
+            Assert.True(vm.ResultKind == "ok", "Retour : " + vm.ResultText);
+            Assert.Contains("REVENIR", dialogs.LastRequest!.ConfirmLabel);
+            Assert.True(DiskBuilder.RangesEqual(sp, env.PathOf("reference.img"), 64L << 20),
+                "le disque doit être revenu exactement à l'état du point");
+            Shot(window, "10-retour-termine");
+
+            // Retour sur le disque Windows actif : refusé avec explication WinPE, rien n'est écrit
+            int confirms = dialogs.ConfirmCalls;
+            vm.SelectedSource = vm.SourceDisks.Single(x => x.Id == "sys");
+            vm.SelectedPoint = vm.Points[0];
+            Assert.True(vm.CanRevert);
+            vm.RevertCommand.Execute(null);
+            PumpUntil(() => !vm.IsBusy && dialogs.Blocked.Count >= 1, 20000, "refus du retour sur le disque système");
+            Assert.Contains(dialogs.Blocked, m => m.Contains("WinPE"));
+            Assert.Equal(confirms, dialogs.ConfirmCalls);
 
             // Aucune erreur de liaison, aucune exception non gérée
             listener.Flush();

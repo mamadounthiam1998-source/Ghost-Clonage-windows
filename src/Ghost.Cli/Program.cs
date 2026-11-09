@@ -15,6 +15,11 @@ GHOST CLONAGE WINDOWS — console
   GhostClonageCli image   --src <N> --out <fichier.gci>
   GhostClonageCli restore --image <fichier.gci> --dst <M>
   GhostClonageCli verify  --image <fichier.gci>
+  GhostClonageCli points       --dir <dossier>
+  GhostClonageCli point-create --src <N> --dir <dossier> [--label <nom>]
+  GhostClonageCli point-revert --file <fichier.gci> --dst <M>
+
+Un point de restauration = image du DISQUE ENTIER (toutes les partitions et l'espace hors partition).
 
 N et M sont les numéros de disque affichés par « list ».
 Toute opération destructive demande de retaper « EFFACER DISQUE M ».
@@ -109,6 +114,50 @@ try
             return Report(await RestoreEngine.RunAsync(new RestoreRequest
             {
                 Provider = provider, ImagePath = img, DestinationId = dst,
+                ErasureConfirmed = true, ConfirmedDestinationId = dst
+            }, prog, log, cts.Token));
+        }
+
+        case "points":
+        {
+            string dir = Opt("--dir") ?? throw new ArgumentException("--dir manquant.");
+            var l = RestorePointCatalog.List(dir);
+            if (l.Points.Count == 0) Console.WriteLine("Aucun point de restauration valide dans ce dossier.");
+            int i = 1;
+            foreach (var p in l.Points)
+                Console.WriteLine($"{i++,2}. {p.Label} — {p.CreatedUtc.ToLocalTime():dd/MM/yyyy HH:mm} — {SafetyGuard.Fmt(p.FileSize)} — {p.PartitionCount} partition(s) : {p.PartitionSummary}\n    {p.Path}");
+            if (l.InvalidFiles > 0) Console.WriteLine($"({l.InvalidFiles} fichier(s) incomplet(s) ou corrompu(s) ignoré(s))");
+            return 0;
+        }
+
+        case "point-create":
+        {
+            string src = Id(Opt("--src"));
+            string dir = Opt("--dir") ?? throw new ArgumentException("--dir manquant.");
+            string label = Opt("--label") ?? "Point de restauration";
+            Directory.CreateDirectory(dir);
+            var pre = ImageEngine.Preflight(provider, src);
+            PrintIssues(pre.Issues);
+            if (pre.IsBlocked) return 2;
+            return Report(await ImageEngine.CreateAsync(new ImageRequest
+            {
+                Provider = provider, SourceId = src, OutputPath = RestorePointCatalog.BuildPath(dir, label, DateTime.Now),
+                FullDisk = true, Label = label, IsRestorePoint = true
+            }, prog, log, cts.Token));
+        }
+
+        case "point-revert":
+        {
+            string file = Opt("--file") ?? throw new ArgumentException("--file manquant.");
+            string dst = Id(Opt("--dst"));
+            var pre = RestoreEngine.Preflight(provider, file, dst);
+            PrintIssues(pre.Issues);
+            foreach (var c in pre.Compatibility) Console.WriteLine($"  [{c.Severity}] {c.Title} — {c.Detail}");
+            if (pre.IsBlocked) { Console.WriteLine(pre.BlockingMessage); return 2; }
+            if (!Confirm(dst)) { Console.WriteLine("Confirmation refusée : rien n'a été modifié."); return 1; }
+            return Report(await RestoreEngine.RunAsync(new RestoreRequest
+            {
+                Provider = provider, ImagePath = file, DestinationId = dst,
                 ErasureConfirmed = true, ConfirmedDestinationId = dst
             }, prog, log, cts.Token));
         }

@@ -46,4 +46,11 @@ public sealed class ImageMetadata
     public DiskLayout Layout { get; set; } = null!;
     public MachineInfo Machine { get; set; } = null!;
     public string Compression { get; set; } = "Brotli";
+
+    /// <summary>Nom donné par l'utilisateur à un point de restauration (null pour une image ordinaire).</summary>
+    public string? Label { get; set; }
+    public bool IsRestorePoint { get; set; }
+
+    /// <summary>Vrai si TOUS les secteurs du disque ont été imagés (y compris l'espace hors partition).</summary>
+    public bool FullDisk { get; set; }
 }

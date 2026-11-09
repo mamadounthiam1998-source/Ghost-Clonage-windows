@@ -19,7 +19,8 @@ Format documenté, entiers en little-endian.
 - **Intégrité** : chaque bloc porte son SHA-256 ; le pied porte le SHA-256 de l'ensemble. `ImageReader.Verify` relit tout le fichier.
 - **Écriture atomique** : l'image est écrite dans `fichier.gci.partial`, vérifiée, puis renommée. Annulation ou erreur → le `.partial` est supprimé.
 - **Copie intelligente** : les blocs entièrement nuls sont stockés sans données ; les autres sont compressés (Brotli) si cela réduit la taille.
-- **Étendue imagée** : du début du disque jusqu'à la fin de la dernière partition (structure GPT/MBR et espaces entre partitions inclus). Les disques sans table reconnue sont imagés en entier. La GPT de secours est recréée à la restauration, à la fin du disque destination.
+- **Disque entier / point de restauration** : les métadonnées portent `FullDisk` (tous les secteurs, jusqu'au dernier du disque), `IsRestorePoint` et `Label`. À la restauration sur un disque de taille différente, la GPT de secours d'origine n'est pas recopiée : elle est recréée en fin de disque destination (qui doit avoir au moins la taille du disque d'origine).
+- **Étendue imagée (image ordinaire)** : du début du disque jusqu'à la fin de la dernière partition (structure GPT/MBR et espaces entre partitions inclus). Les disques sans table reconnue sont imagés en entier. La GPT de secours est recréée à la restauration, à la fin du disque destination.
 
 ## Ce que le format ne contient pas
 

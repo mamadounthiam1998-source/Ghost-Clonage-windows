@@ -17,6 +17,9 @@ public interface IDialogService
     string? PickSaveImage();
     string? PickOpenImage();
 
+    /// <summary>Choix d'un dossier (dossier des points de restauration).</summary>
+    string? PickFolder();
+
     /// <summary>Confirme la fermeture pendant une opération en cours.</summary>
     bool ConfirmCancelOnClose();
 }

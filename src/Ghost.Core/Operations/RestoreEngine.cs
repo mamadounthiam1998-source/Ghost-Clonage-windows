@@ -48,7 +48,8 @@ public static class RestoreEngine
                     new[] { new SafetyIssue(IssueSeverity.Blocking, "DISK_MISSING", "Le disque destination n'est plus disponible.") },
                     Array.Empty<Compat.CompatFinding>(), null);
 
-            var issues = SafetyGuard.CheckRestore(reader.SectorSize, reader.Metadata.Layout, dst);
+            long required = reader.Metadata.FullDisk ? reader.DiskSize : reader.Metadata.Layout.RequiredBytesOnDestination;
+            var issues = SafetyGuard.CheckRestore(reader.SectorSize, reader.Metadata.Layout, required, dst);
             var compat = Compat.CompatibilityAnalyzer.Analyze(reader.Metadata, provider.GetMachineInfo(), dst);
             return new RestorePreflight(reader.Metadata, dst, issues, compat, null);
         }
@@ -81,6 +82,12 @@ public static class RestoreEngine
             bool gpt = layout.Style == PartitionStyle.Gpt;
             t.SetTotal(extent * (req.Verify ? 3 : 2));
 
+            // Image « disque entier » restaurée sur un disque de taille différente : la GPT de secours d'origine
+            // (fin du disque source) ne doit pas être recopiée au milieu du nouveau disque ; elle est recréée.
+            long writeLength = extent;
+            if (reader.Metadata.FullDisk && gpt && pre.Destination!.Size != reader.DiskSize)
+                writeLength = extent - (long)DiskLayout.GptBackupSectors * reader.SectorSize;
+
             // 1) L'image doit être intègre AVANT d'effacer quoi que ce soit
             t.Phase(OperationPhase.Verifying, "Vérification de l'intégrité de l'image…");
             var iv = reader.Verify(t, ct, 0);
@@ -102,12 +109,14 @@ public static class RestoreEngine
                 while (reader.TryReadNext(buf, out var c))
                 {
                     ct.ThrowIfCancellationRequested();
-                    var span = buf.AsSpan(0, c.RawLength);
+                    if (c.Offset >= writeLength) break;
+                    int take = (int)Math.Min(c.RawLength, writeLength - c.Offset);
+                    var span = buf.AsSpan(0, take);
                     if (c.Offset == 0 && gpt)
                         GptFixer.AdjustPrimaryInPlace(span, reader.SectorSize, dst.Length / dst.SectorSize);
                     hashes.Add(SHA256.HashData(span));
                     TransferCore.Write(dst, c.Offset, span, log);
-                    done += c.RawLength;
+                    done += take;
                     t.Report(extent + done);
                 }
 
@@ -124,7 +133,7 @@ public static class RestoreEngine
                 if (req.Verify)
                 {
                     t.Phase(OperationPhase.Verifying, "Vérification SHA-256 des données restaurées…");
-                    TransferCore.Verify(chk, extent, hashes, reader.ChunkSize, t, log, ct, extent * 2);
+                    TransferCore.Verify(chk, writeLength, hashes, reader.ChunkSize, t, log, ct, extent * 2);
                 }
                 else warnings.Add("Vérification d'intégrité désactivée : la restauration n'est pas contrôlée.");
 

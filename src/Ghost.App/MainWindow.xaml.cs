@@ -14,10 +14,10 @@ public partial class MainWindow : Window
     public MainWindow() : this(new WindowsDiskProvider(), null) { }
 
     /// <summary>Constructeur utilisé par les tests d'interface (fournisseur de disques et dialogues injectés).</summary>
-    public MainWindow(Ghost.Core.Disks.IDiskProvider provider, IDialogService? dialogs)
+    public MainWindow(Ghost.Core.Disks.IDiskProvider provider, IDialogService? dialogs, string? settingsPath = null)
     {
         InitializeComponent();
-        _vm = new MainViewModel(provider, dialogs ?? new DialogService(this));
+        _vm = new MainViewModel(provider, dialogs ?? new DialogService(this), settingsPath);
         DataContext = _vm;
     }
 

@@ -149,6 +149,36 @@ try {
   $scan = Repair-Volume -DriveLetter $rl -Scan
   Check ($scan -eq 'NoErrorsFound') "système de fichiers restauré sain (Repair-Volume : $scan)"
 
+  Dismount-Vhd $d2Vhd           # évite la collision de signatures avec la source
+
+  Log "=== POINT DE RESTAURATION (disque entier) puis retour sur le MEME disque ==="
+  $sn = Mount-Vhd $srcVhd
+  $sl = Data-Letter $sn
+  $ptDir = Join-Path $WorkDir 'points'
+  if (Test-Path $ptDir) { Remove-Item $ptDir -Recurse -Force }
+  $r = Run-Cli '' @('point-create', '--src', $sn, '--dir', $ptDir, '--label', 'Avant degats')
+  Check ($r.Code -eq 0) "point de restauration créé"
+  $r = Run-Cli '' @('points', '--dir', $ptDir)
+  Check ($r.Code -eq 0 -and $r.Out -match 'Avant degats' -and $r.Out -match '2 partition|3 partition|partition\(s\)') "point listé avec son nom et ses partitions"
+  $pt = (Get-ChildItem $ptDir -Filter *.gci | Select-Object -First 1).FullName
+  Check ([bool]$pt) "fichier du point présent : $pt"
+
+  # « mise à jour qui tourne mal » : données détruites sur le disque
+  Remove-Item "${sl}:\data.bin" -Force
+  Set-Content "${sl}:\dossier\note.txt" 'ABIME'
+  Write-VolumeCache -DriveLetter $sl
+  Check (-not (Test-Path "${sl}:\data.bin")) "dégâts simulés (data.bin supprimé)"
+
+  $r = Run-Cli "EFFACER DISQUE $sn" @('point-revert', '--file', $pt, '--dst', $sn)
+  Check ($r.Code -eq 0) "retour au point de restauration réussi sur le même disque"
+  Dismount-Vhd $srcVhd
+  $sn = Mount-Vhd $srcVhd
+  $sl = Data-Letter $sn
+  Check ((Get-FileHash "${sl}:\data.bin" -Algorithm SHA256).Hash -eq $h1) "data.bin revenu identique (SHA-256)"
+  Check ((Get-FileHash "${sl}:\dossier\note.txt" -Algorithm SHA256).Hash -eq $h2) "note.txt revenu à son état d'origine (SHA-256)"
+  $scan = Repair-Volume -DriveLetter $sl -Scan
+  Check ($scan -eq 'NoErrorsFound') "système de fichiers sain après retour (Repair-Volume : $scan)"
+
   Log "=== TOUS LES TESTS D'INTEGRATION REUSSIS ==="
   exit 0
 }

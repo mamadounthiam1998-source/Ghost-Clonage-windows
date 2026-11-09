@@ -16,6 +16,7 @@ Ce document est volontairement franc : un outil qui écrit sur des disques doit 
 | Annulation | Clone : état « annulé », destination déclarée incomplète. Image : fichier temporaire supprimé |
 | Image | Création → vérification → restauration ; compression ; image corrompue **refusée avant tout effacement** ; image tronquée refusée |
 | Compatibilité | UEFI/BIOS, matériel différent, licence, absence de garantie signalés |
+| Points de restauration | Disque 2 partitions + données hors partition : retour **identique sur toute la taille du disque** ; une image ordinaire, elle, ne copie pas l'espace hors partition ; restauration sur disque plus grand (GPT de secours valide) ; refus sur disque plus petit ; retour sur le même disque après dégâts ; catalogue (valides seulement, plus récent d'abord, fichiers corrompus ignorés) |
 
 Compilation de la couche Windows (accès disque natif), de l'interface WPF (XAML inclus) et de la console : validée par le compilateur. Le workflow GitHub Actions exécute les tests, compile sur Windows et construit l'installateur.
 

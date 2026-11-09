@@ -9,20 +9,35 @@ using Ghost.Windows;
 
 namespace Ghost.App.ViewModels;
 
-public enum AppMode { Clone, Image, Restore }
+public enum AppMode { Clone, Image, Restore, RestorePoint }
+
+public enum OpKind { Clone, Image, Restore, CreatePoint, Revert }
 
 public sealed class MainViewModel : ObservableObject
 {
     private readonly IDiskProvider _provider;
     private readonly IDialogService _dialogs;
+    private readonly string _settingsPath;
+    private readonly AppSettings _settings;
     private CancellationTokenSource? _cts;
+    private OpKind _op = OpKind.Clone;
 
-    public MainViewModel(IDiskProvider provider, IDialogService dialogs)
+    public MainViewModel(IDiskProvider provider, IDialogService dialogs, string? settingsPath = null)
     {
         _provider = provider;
         _dialogs = dialogs;
+        _settingsPath = settingsPath ?? AppSettings.DefaultPath;
+        _settings = AppSettings.Load(_settingsPath);
+        _pointsFolder = _settings.PointsFolder;
 
         StartCommand = new RelayCommand(async () => await StartAsync(), () => CanStart);
+        RevertCommand = new RelayCommand(async () => await RevertAsync(), () => CanRevert);
+        BrowsePointsFolderCommand = new RelayCommand(() =>
+        {
+            var f = _dialogs.PickFolder();
+            if (f != null) PointsFolder = f;
+        }, () => !IsBusy);
+        RefreshPointsCommand = new RelayCommand(RefreshPoints, () => !IsBusy);
         CancelCommand = new RelayCommand(() => _cts?.Cancel(), () => IsBusy);
         RefreshCommand = new RelayCommand(RefreshDisks, () => !IsBusy);
         BrowseOutputCommand = new RelayCommand(() =>
@@ -37,6 +52,7 @@ public sealed class MainViewModel : ObservableObject
         }, () => !IsBusy);
 
         RefreshDisks();
+        RefreshPoints();
     }
 
     // ---------- Mode ----------
@@ -49,27 +65,98 @@ public sealed class MainViewModel : ObservableObject
             if (!Set(ref _mode, value)) return;
             foreach (var n in new[] { nameof(IsClone), nameof(IsImage), nameof(IsRestore), nameof(SourceTitle),
                          nameof(DestinationTitle), nameof(ActionLabel), nameof(ShowSourceDisks), nameof(ShowSourceImage),
-                         nameof(ShowDestinationDisks), nameof(ShowDestinationFile) }) Raise(n);
+                         nameof(ShowDestinationDisks), nameof(ShowDestinationFile), nameof(IsRestorePoint),
+                         nameof(ShowDestinationPoints), nameof(ShowRevert) }) Raise(n);
             ClearResult();
             RaiseCanStart();
+            RaiseCanRevert();
+            if (value == AppMode.RestorePoint) RefreshPoints();
         }
     }
     public bool IsClone { get => Mode == AppMode.Clone; set { if (value) Mode = AppMode.Clone; } }
     public bool IsImage { get => Mode == AppMode.Image; set { if (value) Mode = AppMode.Image; } }
     public bool IsRestore { get => Mode == AppMode.Restore; set { if (value) Mode = AppMode.Restore; } }
+    public bool IsRestorePoint { get => Mode == AppMode.RestorePoint; set { if (value) Mode = AppMode.RestorePoint; } }
 
-    public string SourceTitle => Mode == AppMode.Restore ? "IMAGE SOURCE" : "DISQUE SOURCE";
-    public string DestinationTitle => Mode == AppMode.Image ? "FICHIER IMAGE" : "DISQUE DESTINATION";
+    public string SourceTitle => Mode switch
+    {
+        AppMode.Restore => "IMAGE SOURCE",
+        AppMode.RestorePoint => "DISQUE ENTIER À PROTÉGER / À RESTAURER",
+        _ => "DISQUE SOURCE"
+    };
+    public string DestinationTitle => Mode switch
+    {
+        AppMode.Image => "FICHIER IMAGE",
+        AppMode.RestorePoint => "POINTS DE RESTAURATION",
+        _ => "DISQUE DESTINATION"
+    };
     public string ActionLabel => Mode switch
     {
         AppMode.Clone => "CLONER LE DISQUE",
         AppMode.Image => "CRÉER L'IMAGE",
+        AppMode.RestorePoint => "CRÉER LE POINT DE RESTAURATION",
         _ => "RESTAURER L'IMAGE"
     };
     public bool ShowSourceDisks => Mode != AppMode.Restore;
     public bool ShowSourceImage => Mode == AppMode.Restore;
-    public bool ShowDestinationDisks => Mode != AppMode.Image;
+    public bool ShowDestinationDisks => Mode is AppMode.Clone or AppMode.Restore;
     public bool ShowDestinationFile => Mode == AppMode.Image;
+    public bool ShowDestinationPoints => Mode == AppMode.RestorePoint;
+    public bool ShowRevert => Mode == AppMode.RestorePoint && IsIdle;
+
+    // ---------- Points de restauration ----------
+    public ObservableCollection<RestorePointItem> Points { get; } = new();
+
+    private RestorePointItem? _selectedPoint;
+    public RestorePointItem? SelectedPoint
+    {
+        get => _selectedPoint;
+        set { if (Set(ref _selectedPoint, value)) RaiseCanRevert(); }
+    }
+
+    private string _pointsFolder;
+    public string PointsFolder
+    {
+        get => _pointsFolder;
+        set
+        {
+            if (!Set(ref _pointsFolder, value ?? "")) return;
+            _settings.PointsFolder = _pointsFolder;
+            _settings.Save(_settingsPath);
+            RefreshPoints();
+            RaiseCanStart();
+        }
+    }
+
+    private string _pointLabel = "Point de restauration";
+    public string PointLabel { get => _pointLabel; set => Set(ref _pointLabel, value ?? ""); }
+
+    private string _pointsInfo = "";
+    public string PointsInfo { get => _pointsInfo; private set => Set(ref _pointsInfo, value); }
+
+    public void RefreshPoints()
+    {
+        string? keep = SelectedPoint?.Path;
+        Points.Clear();
+        if (string.IsNullOrWhiteSpace(PointsFolder))
+        {
+            SelectedPoint = null;
+            PointsInfo = "Choisissez un dossier sur un AUTRE disque que celui à protéger (disque externe, second disque, partage réseau).";
+            return;
+        }
+        if (!Directory.Exists(PointsFolder))
+        {
+            SelectedPoint = null;
+            PointsInfo = "Ce dossier n'existe pas encore : il sera créé au premier point.";
+            return;
+        }
+        var l = RestorePointCatalog.List(PointsFolder);
+        foreach (var p in l.Points) Points.Add(new RestorePointItem(p));
+        SelectedPoint = Points.FirstOrDefault(x => x.Path == keep);
+        PointsInfo = l.Points.Count == 0
+            ? "Aucun point de restauration dans ce dossier."
+            : $"{l.Points.Count} point(s) valide(s)." + (l.InvalidFiles > 0 ? $" {l.InvalidFiles} fichier(s) incomplet(s) ou corrompu(s) ignoré(s)." : "");
+    }
 
     // ---------- Disques ----------
     public ObservableCollection<DiskItemViewModel> SourceDisks { get; } = new();
@@ -79,7 +166,7 @@ public sealed class MainViewModel : ObservableObject
     public DiskItemViewModel? SelectedSource
     {
         get => _selectedSource;
-        set { if (Set(ref _selectedSource, value)) { ClearResult(); RaiseCanStart(); } }
+        set { if (Set(ref _selectedSource, value)) { ClearResult(); RaiseCanStart(); RaiseCanRevert(); } }
     }
 
     private DiskItemViewModel? _selectedDestination;
@@ -185,7 +272,11 @@ public sealed class MainViewModel : ObservableObject
             if (Set(ref _isBusy, value))
             {
                 Raise(nameof(IsIdle));
+                Raise(nameof(ShowRevert));
                 RaiseCanStart();
+                RaiseCanRevert();
+                (BrowsePointsFolderCommand as RelayCommand)?.RaiseCanExecuteChanged();
+                (RefreshPointsCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (CancelCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (RefreshCommand as RelayCommand)?.RaiseCanExecuteChanged();
                 (BrowseOutputCommand as RelayCommand)?.RaiseCanExecuteChanged();
@@ -246,18 +337,30 @@ public sealed class MainViewModel : ObservableObject
     public ICommand RefreshCommand { get; }
     public ICommand BrowseOutputCommand { get; }
     public ICommand BrowseImageCommand { get; }
+    public ICommand RevertCommand { get; }
+    public ICommand BrowsePointsFolderCommand { get; }
+    public ICommand RefreshPointsCommand { get; }
 
     public bool CanStart => !IsBusy && Mode switch
     {
         AppMode.Clone => SelectedSource != null && SelectedDestination != null,
         AppMode.Image => SelectedSource != null && !string.IsNullOrWhiteSpace(OutputImagePath),
+        AppMode.RestorePoint => SelectedSource != null && !string.IsNullOrWhiteSpace(PointsFolder),
         _ => _imageValid && SelectedDestination != null
     };
+
+    public bool CanRevert => !IsBusy && Mode == AppMode.RestorePoint && SelectedSource != null && SelectedPoint != null;
 
     private void RaiseCanStart()
     {
         Raise(nameof(CanStart));
         (StartCommand as RelayCommand)?.RaiseCanExecuteChanged();
+    }
+
+    private void RaiseCanRevert()
+    {
+        Raise(nameof(CanRevert));
+        (RevertCommand as RelayCommand)?.RaiseCanExecuteChanged();
     }
 
     public bool IsOperationRunning => IsBusy;
@@ -274,10 +377,12 @@ public sealed class MainViewModel : ObservableObject
     {
         OperationPhase.Analysing => "Analyse du disque",
         OperationPhase.Preparing => "Préparation",
-        OperationPhase.Working => Mode switch
+        OperationPhase.Working => _op switch
         {
-            AppMode.Clone => "Clonage en cours",
-            AppMode.Image => "Création de l'image en cours",
+            OpKind.Clone => "Clonage en cours",
+            OpKind.Image => "Création de l'image en cours",
+            OpKind.CreatePoint => "Création du point de restauration en cours",
+            OpKind.Revert => "Retour au point de restauration en cours",
             _ => "Restauration en cours"
         },
         OperationPhase.Verifying => "Vérification",
@@ -301,16 +406,33 @@ public sealed class MainViewModel : ObservableObject
         RemainingText = p.Remaining is { } r ? Dur(r) : "—";
     }
 
-    private async Task StartAsync()
+    private Task StartAsync()
     {
-        if (!CanStart) return;
+        if (!CanStart) return Task.CompletedTask;
+        return Mode switch
+        {
+            AppMode.Clone => ExecuteAsync(OpKind.Clone, "clonage", RunCloneAsync),
+            AppMode.Image => ExecuteAsync(OpKind.Image, "image", RunImageAsync),
+            AppMode.RestorePoint => ExecuteAsync(OpKind.CreatePoint, "point-restauration", RunCreatePointAsync),
+            _ => ExecuteAsync(OpKind.Restore, "restauration", RunRestoreAsync)
+        };
+    }
 
+    private Task RevertAsync()
+    {
+        if (!CanRevert) return Task.CompletedTask;
+        return ExecuteAsync(OpKind.Revert, "retour-point", RunRevertAsync);
+    }
+
+    private async Task ExecuteAsync(OpKind kind, string logName,
+        Func<IProgress<ProgressInfo>, ILog, Task<OperationResult?>> work)
+    {
         ClearResult();
-        string op = Mode switch { AppMode.Clone => "clonage", AppMode.Image => "image", _ => "restauration" };
+        _op = kind;
         FileLog? log = null;
         try
         {
-            log = new FileLog(FileLog.DefaultDirectory, op);
+            log = new FileLog(FileLog.DefaultDirectory, logName);
             LogPath = log.Path;
         }
         catch { /* journal indisponible : l'opération reste possible, un NullLog est utilisé */ }
@@ -327,13 +449,7 @@ public sealed class MainViewModel : ObservableObject
             DetailText = "Analyse en cours…";
             BytesText = SpeedText = ElapsedText = RemainingText = "—";
 
-            OperationResult? result = null;
-            switch (Mode)
-            {
-                case AppMode.Clone: result = await RunCloneAsync(progress, logger); break;
-                case AppMode.Image: result = await RunImageAsync(progress, logger); break;
-                case AppMode.Restore: result = await RunRestoreAsync(progress, logger); break;
-            }
+            var result = await work(progress, logger);
 
             if (result == null)   // abandonné avant toute écriture (refus utilisateur ou blocage)
             {
@@ -351,10 +467,11 @@ public sealed class MainViewModel : ObservableObject
         finally
         {
             IsBusy = false;
-            _cts.Dispose();
+            _cts?.Dispose();
             _cts = null;
             (log as IDisposable)?.Dispose();
             RefreshDisks();
+            if (kind is OpKind.CreatePoint or OpKind.Revert) { _refreshing = true; try { RefreshPoints(); } finally { _refreshing = false; } }
         }
     }
 
@@ -418,6 +535,57 @@ public sealed class MainViewModel : ObservableObject
         {
             Provider = _provider, SourceId = src.Id, OutputPath = OutputImagePath,
             OverwriteConfirmed = _outputConfirmedOverwrite   // la boîte « Enregistrer sous » a déjà demandé le remplacement
+        }, progress, log, _cts!.Token);
+    }
+
+    private async Task<OperationResult?> RunCreatePointAsync(IProgress<ProgressInfo> progress, ILog log)
+    {
+        var src = SelectedSource!;
+        string label = string.IsNullOrWhiteSpace(PointLabel) ? "Point de restauration" : PointLabel.Trim();
+        try { Directory.CreateDirectory(PointsFolder); }
+        catch (Exception ex)
+        {
+            _dialogs.ShowBlocked("Point de restauration impossible", "Le dossier des points n'est pas utilisable : " + ex.Message);
+            return null;
+        }
+
+        string path = RestorePointCatalog.BuildPath(PointsFolder, label, DateTime.Now);
+        return await ImageEngine.CreateAsync(new ImageRequest
+        {
+            Provider = _provider, SourceId = src.Id, OutputPath = path,
+            FullDisk = true,             // TOUT le disque : toutes les partitions (ex. Windows + Skype Room) et l'espace hors partition
+            Label = label, IsRestorePoint = true
+        }, progress, log, _cts!.Token);
+    }
+
+    private async Task<OperationResult?> RunRevertAsync(IProgress<ProgressInfo> progress, ILog log)
+    {
+        var dst = SelectedSource!;           // le disque à ramener à l'état du point
+        var point = SelectedPoint!.Point;
+        var pre = await Task.Run(() => RestoreEngine.Preflight(_provider, point.Path, dst.Id));
+        if (pre.IsBlocked)
+        {
+            string msg = pre.BlockingMessage;
+            if (pre.Issues.Any(i => i.Code == "DEST_SYSTEM_DISK"))
+                msg += "\n\nPour revenir à un point sur le disque Windows actif : démarrez l'ordinateur sur la clé USB WinPE " +
+                       "(menu Démarrer → GHOST CLONAGE WINDOWS → Créer le support USB de démarrage), puis choisissez « Revenir à un point de restauration ».";
+            _dialogs.ShowBlocked("Retour au point impossible", msg);
+            return null;
+        }
+
+        var details = new List<string>(Lines(pre.Issues));
+        details.AddRange(pre.Compatibility.Select(c => $"{c.Title} — {c.Detail}"));
+        var ok = _dialogs.ConfirmErasure(new ConfirmRequest(
+            "Revenir à ce point de restauration",
+            $"Le disque va être ramené EXACTEMENT à l'état du point « {point.Label} » du {point.CreatedUtc.ToLocalTime():dd/MM/yyyy HH:mm}. " +
+            "TOUT ce qui a changé sur le disque depuis (fichiers, programmes, mises à jour) sera DÉFINITIVEMENT PERDU.",
+            dst.Describe(), details, "REVENIR À CE POINT"));
+        if (!ok) return null;
+
+        return await RestoreEngine.RunAsync(new RestoreRequest
+        {
+            Provider = _provider, ImagePath = point.Path, DestinationId = dst.Id,
+            ErasureConfirmed = true, ConfirmedDestinationId = dst.Id
         }, progress, log, _cts!.Token);
     }
 

@@ -1,6 +1,6 @@
 # GHOST CLONAGE WINDOWS — Guide d'utilisation
 
-Trois fonctions, un seul écran : **CLONER**, **CRÉER UNE IMAGE**, **RESTAURER**.
+Quatre fonctions, un seul écran : **CLONER**, **CRÉER UNE IMAGE**, **RESTAURER**, **POINT DE RESTAURATION**.
 
 ## Avant de commencer
 
@@ -35,6 +35,25 @@ Si la destination est plus grande, l'espace en plus reste **non alloué** (éten
 4. L'image est d'abord vérifiée en entier **avant** d'effacer quoi que ce soit.
 
 > **Important** : sur un matériel différent, le démarrage n'est **pas garanti**. Pilotes de stockage, mode de démarrage et licence peuvent poser problème. Conservez toujours l'image d'origine et testez.
+
+## 4. Point de restauration (disque entier)
+
+Un **point de restauration** est une image du **disque ENTIER** : **toutes** les partitions (par exemple *Windows* **et** *Skype Room* sur une salle de réunion) et même l'espace hors partition. Vous pouvez ensuite **revenir exactement** à cet état, par exemple après une mise à jour qui tourne mal.
+
+**Créer un point**
+1. Onglet **POINT DE RESTAURATION**.
+2. À gauche, choisissez le **disque entier** à protéger (pas une partition).
+3. À droite, **Parcourir…** pour choisir le dossier des points — sur **un autre disque** que celui protégé (disque externe, second disque…). Ce dossier est mémorisé.
+4. Donnez un nom (ex. « Avant mise à jour Teams »), puis **CRÉER LE POINT DE RESTAURATION**. Le point est écrit, relu en entier et vérifié (SHA-256) avant d'apparaître dans la liste.
+
+**Revenir à un point**
+1. Choisissez le disque, cliquez le point voulu dans la liste, puis **REVENIR À CE POINT DE RESTAURATION…**.
+2. La fenêtre rouge confirme que **tout ce qui a changé depuis** sera perdu. Cochez, validez.
+3. Le disque est ramené exactement à l'état du point, puis relu et vérifié.
+
+**Disque Windows actif (cas d'une salle Skype/Teams)** : Windows ne peut pas se réécrire pendant qu'il fonctionne. Le **retour** à un point sur le disque système se fait donc **depuis la clé USB WinPE** : menu *7. Revenir à un point de restauration*. La **création** d'un point peut se faire depuis Windows, mais comme le système tourne, le point peut être incohérent (fichiers ouverts) : le logiciel vous prévient. Pour un point fiable, créez-le aussi depuis la clé WinPE (menu *6*).
+
+Le disque sur lequel on revient doit avoir **au moins la taille du disque d'origine** (même modèle recommandé) et la **même taille de secteur**. Pour supprimer un ancien point, supprimez simplement son fichier `.gci` dans le dossier.
 
 ## BitLocker
 

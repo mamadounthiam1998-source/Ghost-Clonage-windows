@@ -9,6 +9,7 @@ Logiciel Windows (C# / .NET 10 / WPF, MVVM) de **clonage de disque**, de **créa
 - **Cloner** un disque vers un autre (GPT/MBR, EFI, MSR, récupération, secteurs de démarrage), avec vérification SHA-256 de tout ce qui est écrit et contrôle des partitions.
 - **Créer une image** `.gci` compressée (Brotli, blocs nuls ignorés), vérifiée en entier avant d'être reconnue valide.
 - **Restaurer** une image (même ordinateur ou autre) avec rapport de compatibilité matérielle.
+- **Points de restauration** : image du **disque entier** (toutes les partitions + espace hors partition) rangée dans un dossier, avec liste et retour en un clic. Sur le disque système actif, le retour se fait depuis la clé WinPE.
 - Protections : disque système jamais écrasé, confirmation explicite obligatoire, capacité/secteurs contrôlés, BitLocker jamais contourné, journal local.
 
 Documentation : [`docs/UTILISATION.md`](docs/UTILISATION.md) · [`docs/FORMAT-IMAGE.md`](docs/FORMAT-IMAGE.md) · [`docs/VALIDATION.md`](docs/VALIDATION.md)

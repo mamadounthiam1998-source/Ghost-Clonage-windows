@@ -16,6 +16,11 @@ public sealed class ImageRequest
     public CompressionLevel Compression { get; init; } = CompressionLevel.Normal;
     public int ChunkSize { get; init; } = TransferCore.DefaultChunk;
     public string AppVersion { get; init; } = "1.0.0";
+
+    /// <summary>Image de TOUS les secteurs du disque (toutes partitions et espace hors partition), pas seulement jusqu'à la dernière partition.</summary>
+    public bool FullDisk { get; init; }
+    public string? Label { get; init; }
+    public bool IsRestorePoint { get; init; }
 }
 
 public static class ImageEngine
@@ -60,7 +65,7 @@ public static class ImageEngine
                 return EngineSupport.Fail(t, "Le fichier image existe déjà et son remplacement n'a pas été confirmé.");
 
             t.Phase(OperationPhase.Preparing, "Préparation…");
-            long extent = layout.ExtentBytes;
+            long extent = req.FullDisk ? src.Size : layout.ExtentBytes;
             t.SetTotal(extent * 2);
 
             byte[] overall;
@@ -77,7 +82,10 @@ public static class ImageEngine
                     SourceWasLiveSystem = src.IsSystemDisk,
                     Layout = layout,
                     Machine = req.Provider.GetMachineInfo(),
-                    Compression = "Brotli"
+                    Compression = "Brotli",
+                    Label = req.Label,
+                    IsRestorePoint = req.IsRestorePoint,
+                    FullDisk = req.FullDisk
                 };
 
                 using var w = new ImageWriter(partial, dev.SectorSize, req.ChunkSize, dev.Length, extent, (int)req.Compression);

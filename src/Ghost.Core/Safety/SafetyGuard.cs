@@ -48,7 +48,7 @@ public static class SafetyGuard
         return l;
     }
 
-    public static List<SafetyIssue> CheckRestore(int imageSectorSize, DiskLayout imageLayout, DiskDescriptor dst)
+    public static List<SafetyIssue> CheckRestore(int imageSectorSize, DiskLayout imageLayout, long requiredBytes, DiskDescriptor dst)
     {
         var l = new List<SafetyIssue>();
         if (dst.IsSystemDisk)
@@ -57,9 +57,9 @@ public static class SafetyGuard
         if (imageSectorSize != dst.SectorSize)
             l.Add(Block("SECTOR_SIZE",
                 $"Taille de secteur différente (image {imageSectorSize} octets, destination {dst.SectorSize} octets) : restauration impossible sans conversion, non prise en charge."));
-        if (dst.Size < imageLayout.RequiredBytesOnDestination)
+        if (dst.Size < requiredBytes)
             l.Add(Block("CAPACITY",
-                $"Capacité insuffisante : {Fmt(imageLayout.RequiredBytesOnDestination)} nécessaires, destination {Fmt(dst.Size)}."));
+                $"Capacité insuffisante : {Fmt(requiredBytes)} nécessaires, destination {Fmt(dst.Size)}."));
         if (dst.PartitionCount > 0)
             l.Add(Info("DEST_HAS_DATA",
                 $"Le disque destination contient {dst.PartitionCount} partition(s) qui seront définitivement effacées."));
