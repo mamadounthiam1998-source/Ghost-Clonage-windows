@@ -22,14 +22,59 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Préparer les dossiers de diagnostic
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force "$env:RUNNER_TEMP\diag", "$env:RUNNER_TEMP\shots" | Out-Null
+
       - name: Tests du moteur (disques virtuels)
-        run: dotnet test tests/Ghost.Core.Tests -c Release --logger "trx;LogFileName=tests.trx"
+        shell: pwsh
+        run: |
+          dotnet test tests/Ghost.Core.Tests -c Release --logger "trx;LogFileName=tests.trx" 2>&1 | Tee-Object "$env:RUNNER_TEMP\diag\1-moteur.log"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Test de l'interface WPF réelle (fenêtre, 3 modes, clonage/image/restauration)
+        shell: pwsh
+        env:
+          GHOST_UI_SHOTS: ${{ runner.temp }}\shots
+        run: |
+          dotnet test tests/Ghost.App.Tests -c Release --logger "console;verbosity=detailed" 2>&1 | Tee-Object "$env:RUNNER_TEMP\diag\2-interface.log"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
 
       - name: Publication de l'application (WPF, autonome win-x64)
         run: dotnet publish src/Ghost.App -c Release -r win-x64 --self-contained true -p:Version=${{ env.APP_VERSION }} -o publish/app
 
       - name: Publication de la version console (WinPE)
         run: dotnet publish src/Ghost.Cli -c Release -r win-x64 --self-contained true -p:Version=${{ env.APP_VERSION }} -o publish/cli
+
+      - name: Lancement réel de l'exécutable publié (contrôle de démarrage)
+        shell: pwsh
+        run: |
+          $out = "$env:RUNNER_TEMP\diag\3-lancement.log"
+          Remove-Item $out, "$out.bindings.txt" -ErrorAction SilentlyContinue
+          $env:GHOST_SMOKE = '1'; $env:GHOST_SMOKE_OUT = $out
+          $p = Start-Process -FilePath "publish\app\GhostClonage.exe" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); Add-Content $out "ECHEC : l'application ne s'est pas terminée (boîte d'erreur ouverte ?)"; exit 1 }
+          if (Test-Path $out) { Get-Content $out }
+          if ($p.ExitCode -ne 0) { Write-Host "Code de sortie : $($p.ExitCode)"; exit 1 }
+
+      - name: Test d'intégration réel (VHDX) — clone, image, restauration
+        shell: pwsh
+        run: |
+          ./tools/ci/Integration-Test.ps1 -CliPath "$PWD\publish\cli\GhostClonageCli.exe" -LogFile "$env:RUNNER_TEMP\diag\4-integration.log"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Diagnostics (visibles dans les annotations du job)
+        if: always()
+        shell: pwsh
+        run: |
+          foreach ($f in Get-ChildItem "$env:RUNNER_TEMP\diag\*.log" -ErrorAction SilentlyContinue) {
+            $t = Get-Content $f.FullName -Raw
+            if (-not $t) { continue }
+            if ($t.Length -gt 7000) { $t = $t.Substring($t.Length - 7000) }
+            $e = $t -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+            Write-Host "::notice title=$($f.Name)::$e"
+          }
 
       - name: Installer Inno Setup
         run: choco install innosetup -y --no-progress
@@ -69,7 +114,11 @@ jobs:
         if: always()
         with:
           name: resultats-tests
-          path: '**/tests.trx'
+          path: |
+            **/tests.trx
+            ${{ runner.temp }}/diag/*.log
+            ${{ runner.temp }}/diag/*.txt
+            ${{ runner.temp }}/shots/*.png
 
       - name: Publier la Release (tags v*)
         if: startsWith(github.ref, 'refs/tags/v')

@@ -6,6 +6,7 @@
     <Project Path="src/Ghost.Windows/Ghost.Windows.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Ghost.App.Tests/Ghost.App.Tests.csproj" />
     <Project Path="tests/Ghost.Core.Tests/Ghost.Core.Tests.csproj" />
   </Folder>
 </Solution>
