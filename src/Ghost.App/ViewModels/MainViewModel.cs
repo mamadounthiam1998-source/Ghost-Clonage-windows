@@ -92,9 +92,12 @@ public sealed class MainViewModel : ObservableObject
     private string _diskStatus = "";
     public string DiskStatus { get => _diskStatus; private set => Set(ref _diskStatus, value); }
 
+    private bool _refreshing;
+
     public void RefreshDisks()
     {
         string? keepSrc = SelectedSource?.Id, keepDst = SelectedDestination?.Id;
+        _refreshing = true;   // la relecture de la liste ne doit pas effacer le résultat de l'opération qui vient de finir
         try
         {
             var disks = _provider.ListDisks();
@@ -114,6 +117,10 @@ public sealed class MainViewModel : ObservableObject
         catch (Exception ex)
         {
             DiskStatus = "Détection des disques impossible : " + ex.Message;
+        }
+        finally
+        {
+            _refreshing = false;
         }
     }
 
@@ -227,7 +234,7 @@ public sealed class MainViewModel : ObservableObject
 
     private void ClearResult()
     {
-        if (IsBusy) return;
+        if (IsBusy || _refreshing) return;
         HasResult = false;
         ShowProgress = false;
         Percent = 0;
