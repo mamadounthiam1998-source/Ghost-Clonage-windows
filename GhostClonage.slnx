@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Ghost.App/Ghost.App.csproj" />
+    <Project Path="src/Ghost.Cli/Ghost.Cli.csproj" />
+    <Project Path="src/Ghost.Core/Ghost.Core.csproj" />
+    <Project Path="src/Ghost.Windows/Ghost.Windows.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Ghost.Core.Tests/Ghost.Core.Tests.csproj" />
+  </Folder>
+</Solution>

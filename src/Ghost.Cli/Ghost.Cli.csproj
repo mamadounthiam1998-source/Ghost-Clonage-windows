@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AssemblyName>GhostClonageCli</AssemblyName>
+    <RootNamespace>Ghost.Cli</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ghost.Core\Ghost.Core.csproj" />
+    <ProjectReference Include="..\Ghost.Windows\Ghost.Windows.csproj" />
+  </ItemGroup>
+</Project>

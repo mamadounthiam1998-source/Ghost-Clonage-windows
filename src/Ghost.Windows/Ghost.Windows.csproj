@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Ghost.Windows</RootNamespace>
+    <AssemblyName>Ghost.Windows</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Ghost.Core\Ghost.Core.csproj" />
+  </ItemGroup>
+</Project>

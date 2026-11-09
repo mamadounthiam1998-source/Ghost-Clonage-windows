@@ -1,0 +1,10 @@
+bin/
+obj/
+publish/
+artifacts/
+*.user
+.vs/
+*.gci
+*.gci.partial
+*.img
+TestResults/
