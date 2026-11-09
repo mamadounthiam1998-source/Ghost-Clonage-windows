@@ -128,6 +128,9 @@ public class MainWindowUiTests
             app.InitializeComponent();
             app.DispatcherUnhandledException += (_, e) => { unhandled.Add(e.Exception); e.Handled = true; };
 
+            // Comme dans l'application réelle : les continuations « await » reviennent sur le thread de l'interface
+            SynchronizationContext.SetSynchronizationContext(new DispatcherSynchronizationContext(Dispatcher.CurrentDispatcher));
+
             var dialogs = new FakeDialogs();
             var window = new MainWindow(env.Provider, dialogs);
             window.Show();

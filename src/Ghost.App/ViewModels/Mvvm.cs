@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows;
 using System.Windows.Input;
+using System.Windows.Threading;
 
 namespace Ghost.App.ViewModels;
 
@@ -24,6 +26,7 @@ public sealed class RelayCommand : ICommand
 {
     private readonly Action<object?> _execute;
     private readonly Func<object?, bool>? _canExecute;
+    private readonly Dispatcher _dispatcher = Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
 
     public RelayCommand(Action execute, Func<bool>? canExecute = null)
         : this(_ => execute(), canExecute == null ? null : _ => canExecute()) { }
@@ -37,5 +40,11 @@ public sealed class RelayCommand : ICommand
     public event EventHandler? CanExecuteChanged;
     public bool CanExecute(object? parameter) => _canExecute?.Invoke(parameter) ?? true;
     public void Execute(object? parameter) => _execute(parameter);
-    public void RaiseCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>Toujours notifié sur le thread de l'interface (WPF refuse l'accès depuis un autre thread).</summary>
+    public void RaiseCanExecuteChanged()
+    {
+        if (_dispatcher.CheckAccess()) CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        else _dispatcher.BeginInvoke(() => CanExecuteChanged?.Invoke(this, EventArgs.Empty));
+    }
 }
