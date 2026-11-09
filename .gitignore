@@ -8,3 +8,4 @@ artifacts/
 *.gci.partial
 *.img
 TestResults/
+*.zip
