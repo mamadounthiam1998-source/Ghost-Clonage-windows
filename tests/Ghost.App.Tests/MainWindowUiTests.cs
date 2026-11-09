@@ -60,7 +60,15 @@ public class MainWindowUiTests
         Assert.False(timedOut, $"Délai dépassé en attendant : {what}");
     }
 
-    private static void Settle(int ms = 300) => PumpUntil(() => false, ms, "stabilisation") ;
+    /// <summary>Laisse la boucle de messages tourner un court instant (rendu, animations, liaisons).</summary>
+    private static void Settle(int ms = 300)
+    {
+        var frame = new DispatcherFrame();
+        var timer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromMilliseconds(ms) };
+        timer.Tick += (_, _) => { timer.Stop(); frame.Continue = false; };
+        timer.Start();
+        Dispatcher.PushFrame(frame);
+    }
 
     private static T? Find<T>(DependencyObject root) where T : DependencyObject
     {
