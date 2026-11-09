@@ -2,7 +2,7 @@
 
 Ce document est volontairement franc : un outil qui écrit sur des disques doit être éprouvé avant d'être cru.
 
-## Validé automatiquement (26 tests, `dotnet test`, disques virtuels)
+## Validé automatiquement (33 tests du moteur, `dotnet test`, disques virtuels)
 
 | Domaine | Vérifié |
 |---|---|
@@ -19,6 +19,12 @@ Ce document est volontairement franc : un outil qui écrit sur des disques doit 
 | Points de restauration | Disque 2 partitions + données hors partition : retour **identique sur toute la taille du disque** ; une image ordinaire, elle, ne copie pas l'espace hors partition ; restauration sur disque plus grand (GPT de secours valide) ; refus sur disque plus petit ; retour sur le même disque après dégâts ; catalogue (valides seulement, plus récent d'abord, fichiers corrompus ignorés) |
 
 Compilation de la couche Windows (accès disque natif), de l'interface WPF (XAML inclus) et de la console : validée par le compilateur. Le workflow GitHub Actions exécute les tests, compile sur Windows et construit l'installateur.
+
+## Validé sur Windows à chaque build (GitHub Actions)
+
+- **Interface WPF réelle** : la fenêtre s'ouvre, les 4 modes fonctionnent (clone, image, restauration, point de restauration + retour), aucune erreur de liaison XAML, le résultat reste affiché.
+- **Exécutable publié** : démarre sans erreur, détecte les vrais disques du runner, marque le disque système et ne le propose pas en destination.
+- **VHDX réels via l'accès disque natif** : clone vers un disque plus grand, image + vérification, image corrompue détectée, restauration, point de restauration puis retour sur le **même disque** après dégâts — fichiers identiques (SHA-256) et système de fichiers sain (`Repair-Volume`).
 
 ## NON validé (à faire sur matériel réel avant de faire confiance)
 

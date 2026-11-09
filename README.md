@@ -2,7 +2,7 @@
 
 Logiciel Windows (C# / .NET 10 / WPF, MVVM) de **clonage de disque**, de **création d'image** et de **restauration**, avec vérification SHA-256, sans télémétrie ni connexion Internet.
 
-> **Statut honnête** : le moteur (clonage, image, restauration, sécurité, intégrité) est testé sur disques virtuels (26 tests). L'accès aux disques physiques Windows, l'interface, l'installateur et le support WinPE sont écrits et compilent, mais **n'ont pas encore été exécutés sur du matériel réel** — voir [`docs/VALIDATION.md`](docs/VALIDATION.md). Ne l'utilisez pas sur des données irremplaçables avant d'avoir suivi la procédure de test.
+> **Statut** : à chaque build, GitHub Actions exécute sur Windows les tests du moteur (33), un test de la vraie fenêtre WPF, le lancement de l'exécutable publié et un test d'intégration sur de **vrais disques virtuels VHDX** (clone, image, restauration, point de restauration, avec comparaison SHA-256 et `Repair-Volume`). **Non testé** : disque physique réel, démarrage effectif d'un Windows cloné, clé WinPE, installation sur un PC propre — voir [`docs/VALIDATION.md`](docs/VALIDATION.md). Essayez d'abord sur des disques de test.
 
 ## Fonctions
 
